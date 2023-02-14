@@ -40,5 +40,6 @@ class CityScapesPreprocess(Cityscapes):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
+        # inspo from https://github.com/pytorch/vision/issues/9#issuecomment-304224800
         return image, target
 

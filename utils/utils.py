@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from time import time
 import multiprocessing as mp
 import numpy as np
-from preprocess import CityScapesPreprocess
+# from preprocess import CityScapesPreprocess
 
 class Residual_Block(nn.Module):
     
@@ -111,29 +111,26 @@ class upsample(nn.Module):
 
 def optimalWorkers():
     transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize(size=((1024,512))),
+        torchvision.transforms.Resize(size=((512,1024))),
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        # torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
 
     dataset = CityScapesPreprocess("data", split='train', mode='fine', target_type='semantic', transform=transform, target_transform=transform)
 
-    # print(type(dataset[0][0]), type(dataset[0][1]))
-
-    for num_workers in range(2, mp.cpu_count(), 2):  
+    for num_workers in range(4, mp.cpu_count(), 2):  
+        passTime = 100000000
         train_loader = torch.utils.data.DataLoader(dataset,shuffle=True,num_workers=num_workers,batch_size=64,pin_memory=True)
         start = time()
 
         for epoch in range(1, 3):
             for i, data in enumerate(train_loader, 0):
                 pass
+            print("Epoch #", epoch)
 
         end = time()
         if (end-start) < passTime: 
             passTime = end - start
             cores = num_workers
         print("Finish with:{} second, num_workers={}".format(end - start, num_workers))
-    return num_workers
-
-if __name__=="__main__":
-    optimalWorkers()
+    return cores

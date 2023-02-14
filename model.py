@@ -7,7 +7,7 @@ from utils.utils import *
 
 class CityScapesNetwork(nn.Module):
     
-    def __init__(self, in_channels=3, out_channels=17):
+    def __init__(self, in_channels=3, out_channels=32):
         
         """
         @param:
