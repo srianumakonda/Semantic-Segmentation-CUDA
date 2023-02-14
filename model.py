@@ -1,12 +1,13 @@
 import torch
 import torchvision
+from torchinfo import summary
 import torch.nn as nn
 import torch.nn.functional as F
 from utils.utils import *
 
 class CityScapesNetwork(nn.Module):
     
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels=3, out_channels=17):
         
         """
         @param:
@@ -14,8 +15,8 @@ class CityScapesNetwork(nn.Module):
             out_channels (int): specify the number of output channels to be released from the U-Net model
         """
 
-        super(UNet, self).__init__()
-        
+        super(CityScapesNetwork, self).__init__()
+
         self.down1 = double_conv(in_channels,64)
         self.down2 = max_down(64,128)
         self.down3 = max_down(128,256)
@@ -26,7 +27,7 @@ class CityScapesNetwork(nn.Module):
         self.up3 = upsample(256,64)
         self.up4 = upsample(128,64)
         self.conv1 = nn.Conv2d(64, out_channels, 1)
-	    self.out_conv = nn.Conv2d(out_channels, out_channels, 1)	
+        self.out_conv = nn.Conv2d(out_channels, out_channels, 1)	
 
     def forward(self, x):
 
@@ -39,6 +40,12 @@ class CityScapesNetwork(nn.Module):
         x = self.up2(x,x3)
         x = self.up3(x,x2)
         x = self.up4(x,x1)
-	    x = self.conv1(x)
+        x = self.conv1(x)
         out = self.out_conv(x)
         return out
+
+if __name__=="__main__":
+    x = torch.randn(1,3,512,1024)
+    c = CityScapesNetwork()
+    print(c(x).shape)
+    summary(c, input_size=(1, 3, 512, 1024))
