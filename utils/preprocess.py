@@ -5,6 +5,7 @@ from PIL import Image
 from collections import namedtuple
 from torchvision.datasets import Cityscapes
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
+from utils import encode
 # import cv2
 
 class CityScapesPreprocess(Cityscapes):
@@ -19,6 +20,7 @@ class CityScapesPreprocess(Cityscapes):
             than one item. Otherwise, target is a json object if target_type="polygon", else the image segmentation.
         Note:
             I copied PyTorch's source code for preprocessing the CityScapes dataset and then personally modified it so that I can perform the __getitem__ operation, source code can be found here: https://pytorch.org/vision/main/_modules/torchvision/datasets/cityscapes.html#Cityscapes
+            Also note that transforms.ToTensor() automatically does the normalization between 0->1 for me, which is why I don't need to do anything here; https://discuss.pytorch.org/t/does-pytorch-automatically-normalizes-image-to-0-1/40022
         """
 
         image = Image.open(self.images[index]).convert("RGB")
@@ -37,9 +39,12 @@ class CityScapesPreprocess(Cityscapes):
         if self.transforms is not None:
             image = self.transform(image) 
 
-        if self.target_transform is not None:
-            target = self.target_transform(target)
+
+        # if self.target_transform is not None:
+        #     target = self.target_transform(target)
+
+        target = torch.Tensor(target)
+        target = encode(target)
 
         # inspo from https://github.com/pytorch/vision/issues/9#issuecomment-304224800
         return image, target
-
