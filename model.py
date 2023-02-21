@@ -3,11 +3,11 @@ import torchvision
 from torchinfo import summary
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.utils import *
+from utils import *
 
 class CityScapesNetwork(nn.Module):
     
-    def __init__(self, in_channels=3, out_channels=32):
+    def __init__(self, in_channels, out_channels):
         
         """
         @param:
