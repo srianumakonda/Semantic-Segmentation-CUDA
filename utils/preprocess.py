@@ -5,8 +5,10 @@ from PIL import Image
 from collections import namedtuple
 from torchvision.datasets import Cityscapes
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
-from utils import encode
+import utils
 # import cv2
+
+from inspect import getmembers, isfunction
 
 class CityScapesPreprocess(Cityscapes):
     # super(CityScapesPreprocess, self).__init__()
@@ -30,8 +32,7 @@ class CityScapesPreprocess(Cityscapes):
             if t == "polygon":
                 target = self._load_json(self.targets[index][i])
             else:
-                target = Image.open(self.targets[index][i]).convert("RGB")
-
+                target = Image.open(self.targets[index][i])
             targets.append(target)
 
         target = tuple(targets) if len(targets) > 1 else targets[0]
@@ -39,12 +40,12 @@ class CityScapesPreprocess(Cityscapes):
         if self.transforms is not None:
             image = self.transform(image) 
 
+        if self.target_transform is not None:
+            target = self.target_transform(target)
 
-        # if self.target_transform is not None:
-        #     target = self.target_transform(target)
-
-        target = torch.Tensor(target)
-        target = encode(target)
+        # find better way to link all of this
+        target = utils.encodeMask(target)
+        target = torch.squeeze(target).long()
 
         # inspo from https://github.com/pytorch/vision/issues/9#issuecomment-304224800
         return image, target
