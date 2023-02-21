@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from time import time
 import multiprocessing as mp
 import numpy as np
-from preprocess import CityScapesPreprocess
+from utils.preprocess import CityScapesPreprocess
 
 
 
@@ -135,7 +135,62 @@ def optimalWorkers():
             passTime = end - start
             cores = num_workers
         print("Finish with:{} second, num_workers={}".format(end - start, num_workers))
+
     return cores
+
+def train_model(model, data_loader, val_loader, epochs, steps_per_epoch, device, optim, iou, dice, precision, recall):
+    outputs = []
+    highest_dice = 0.0
+    highest_iou = 0.0
+    highest_prec = 0.0
+    highest_rec = 0.0
+    for epoch in range(epochs):
+        print('-'*20)
+        for i, (img, annotation) in enumerate(data_loader):
+            img = img.to(device)
+            annotation = annotation.to(device)
+            
+            output = model(img)
+            iou_loss = iou(output, annotation)
+            dice_loss = dice(output, annotation)
+            precision_met = precision(output, annotation)
+            recall_met = recall(output, annotation)
+            
+            optim.zero_grad()
+            iou_loss.backward()
+            optim.step()
+
+            if highest_iou < 1-iou_loss.item():
+                highest_iou = 1-iou_loss.item()
+
+            if highest_dice < dice_loss:
+                highest_dice = dice_loss
+
+            if highest_prec < precision_met:
+                highest_prec = precision_met
+
+            if highest_rec < recall_met:
+                highest_rec = recall_met    
+            
+            if (int(i+1))%(steps_per_epoch//5) == 0:
+                print(f"epoch {epoch+1}/{epochs}, step {i+1}/{steps_per_epoch}, IoU score = {1-iou_loss.item():.4f}, Precision = {precision_met:.4f}, Recall = {recall_met:.4f}, F1/Dice score: {dice_loss:.4f}")
+                
+        model.eval()
+        for img, annotation in val_loader:
+            img = img.to(device)
+            annotation = annotation.to(device)
+
+            output = model(img)
+            iou_loss = iou(output, annotation)
+            dice_loss = dice(output, annotation)
+            precision_met = precision(output, annotation)
+            recall_met = recall(output, annotation)
+        print(f"validation loss: IoU score = {1-iou_loss.item():.4f}, Precision = {precision_met:.4f}, Recall = {recall_met:.4f}, F1/Dice score: {dice_loss:.4f}")
+        outputs.append((img, annotation, output))
+    print("-"*20)
+    print(f"highest values, IoU score = {highest_iou:.4f}, Precision = {highest_prec:.4f}, Recall = {highest_rec:.4f}, F1/Dice score: {highest_dice:.4f}")
+
+    return model, outputs
 
 #VARIABLES FOR ENCODING AND DECODING - MODIFY CLASSES HERE
 void = [0, 1, 2, 3, 4, 5, 6, 9, 10, 14, 15, 16, 18, 29, 30, -1]
@@ -161,26 +216,40 @@ colors = [[0, 0, 0],
           [0, 80, 100],
           [0, 0, 230],
           [119, 11, 32]]
-colorMap = dict(zip(valid, range(len(valid))))
-reverseMap = dict(zip(range(len(valid)), colors))
 
-def encode(seg):
-        for v in void:
-            seg[seg == v] = 255 #change to background
-        for v in valid:
-            seg[seg == v] = colorMap[v]
-        return seg
+def numClasses():
+    return len(valid)
 
-def decode(seg):
-    seg = seg.numpy()
-    r, g, b = seg.copy() #split across channels
-    for c in range(0, len(valid)):
+colorMap = dict(zip(valid, range(numClasses())))
+reverseMap = dict(zip(range(numClasses()), colors))
+
+def encodeMask(seg):
+    for v in void:
+        seg[seg == v] = 255 #change to background
+    for v in valid:
+        seg[seg == v] = colorMap[v]
+    return seg
+
+def decodeMask(seg):
+    seg = seg.detach().cpu().numpy()
+    r = seg.copy()
+    g = seg.copy()
+    b = seg.copy()
+    
+    for c in range(0, numClasses()):
         r[seg == c] = reverseMap[c][0]
         g[seg == c] = reverseMap[c][1]
         b[seg == c] = reverseMap[c][2]
 
-    rgb = np.zeros((seg.shape[0], seg.shape[1], 3)) #stitch everything back together
-    # rgb[:, :, 0] = r / 255.0
-    # rgb[:, :, 1] = g / 255.0
-    # rgb[:, :, 2] = b / 255.0
+    rgb = np.zeros((3, seg.shape[-2], seg.shape[-1])) #stitch everything back together
+    rgb[0, :, :] = r / 255.0
+    rgb[1, :, :] = g / 255.0
+    rgb[2, :, :] = b / 255.0
     return rgb
+
+def save_preds(output, path):
+    temp = torch.zeros((output.shape[0],3,output.shape[1],output.shape[2]))
+    for i in output:
+        temp[i] = torch.from_numpy(decodeMask(i))
+    grid = torchvision.utils.make_grid(temp, nrow=2)
+    torchvision.utils.save_image(grid, path)
