@@ -57,10 +57,10 @@ class double_conv(nn.Module):
 
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels,out_channels,kernel_size=kernel_size,stride=stride,padding=padding),
-            nn.InstanceNorm2d(out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Conv2d(out_channels,out_channels,kernel_size=kernel_size,stride=stride,padding=padding),
-            nn.InstanceNorm2d(out_channels),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU()   
         )
 
@@ -115,7 +115,6 @@ def optimalWorkers():
     transform = torchvision.transforms.Compose([
         torchvision.transforms.Resize(size=((512,1024))),
         torchvision.transforms.ToTensor(),
-        # torchvision.transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
 
     dataset = CityScapesPreprocess("data", split='train', mode='fine', target_type='semantic', transform=transform, target_transform=transform)
@@ -231,7 +230,7 @@ def encodeMask(seg):
     return seg
 
 def decodeMask(seg):
-    seg = seg.detach().cpu().numpy()
+    seg = seg.numpy().astype("uint8")
     r = seg.copy()
     g = seg.copy()
     b = seg.copy()
@@ -241,15 +240,22 @@ def decodeMask(seg):
         g[seg == c] = reverseMap[c][1]
         b[seg == c] = reverseMap[c][2]
 
-    rgb = np.zeros((3, seg.shape[-2], seg.shape[-1])) #stitch everything back together
+    rgb = np.zeros((3, seg.shape[-2], seg.shape[-1]),dtype=np.float32) #stitch everything back together
     rgb[0, :, :] = r / 255.0
     rgb[1, :, :] = g / 255.0
     rgb[2, :, :] = b / 255.0
-    return rgb
+    return rgb #returning normalized values
+
+# def save_preds(output, path):
+#     print(torch.unique(output))
+#     grid = torchvision.utils.make_grid(output, nrow=4)
+#     torchvision.utils.save_image(grid, path)
 
 def save_preds(output, path):
-    temp = torch.zeros((output.shape[0],3,output.shape[1],output.shape[2]))
-    for i in output:
-        temp[i] = torch.from_numpy(decodeMask(i))
-    grid = torchvision.utils.make_grid(temp, nrow=2)
+    temp = torch.zeros((output.shape[0],3,output.shape[-2],output.shape[-1])) #allocate memory for RGB images
+    output = output.clone().cpu()
+    print(torch.unique(output))
+    for i in range(len(output)):
+        temp[i] = torch.from_numpy(decodeMask(output[i]))
+    grid = torchvision.utils.make_grid(temp, nrow=4)
     torchvision.utils.save_image(grid, path)
