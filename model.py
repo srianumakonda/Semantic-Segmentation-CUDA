@@ -40,12 +40,12 @@ class CityScapesNetwork(nn.Module):
         x = self.up2(x,x3)
         x = self.up3(x,x2)
         x = self.up4(x,x1)
-        x = self.conv1(x)
+        x = torch.relu(self.conv1(x))
         out = self.out_conv(x)
         return out
 
 if __name__=="__main__":
     x = torch.randn(1,3,512,1024)
-    c = CityScapesNetwork()
+    c = CityScapesNetwork(3,20)
     print(c(x).shape)
     summary(c, input_size=(1, 3, 512, 1024))
