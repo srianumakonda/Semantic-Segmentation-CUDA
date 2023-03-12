@@ -7,21 +7,22 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from utils import *
 from model import CityScapesNetwork
+import segmentation_models_pytorch as smp
 
 torch.cuda.empty_cache()
-# device = torch.device("cpu")
+torch.autograd.set_detect_anomaly(True)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 if __name__=="__main__":
     #PARAMS
     SEED = 42
-    WEIGHT_DECAY = 1e-6
+    WEIGHT_DECAY = 5e-5
     BATCH_SIZE = 16
-    EPOCHS = 50
-    LR = 5e-5
+    EPOCHS = 100
+    LR = 1e-4
     CHECKPOINT_EPOCH = 0
-    NUM_WORKERS = 12
+    NUM_WORKERS = 8
     LOAD_MODEL = False
     SAVE_MODEL = True
     WIDTH = 256
@@ -40,11 +41,11 @@ if __name__=="__main__":
         torchvision.transforms.PILToTensor()
     ])
 
-    train = CityScapesPreprocess('data', split='train', mode='fine', target_type='semantic', transform=transform, target_transform=target_transform)
-    val = CityScapesPreprocess('data', split='val', mode='fine', target_type='semantic', transform=transform, target_transform=transform)
+    train = CityScapesPreprocess('data/', split='train', mode='fine', target_type='semantic', transform=transform, target_transform=target_transform)
+    val = CityScapesPreprocess('data/', split='val', mode='fine', target_type='semantic', transform=transform, target_transform=target_transform)
 
     trainloader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    valloader = torch.utils.data.DataLoader(val, batch_size=BATCH_SIZE, shuffle=False)
+    valloader = torch.utils.data.DataLoader(val, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
 
     # img, seg = train[100]
     # print("image dimensions: ", img.shape, "segmentation size: ", seg.shape)
@@ -59,12 +60,17 @@ if __name__=="__main__":
     # ax[2].imshow(torch.Tensor(deseg).permute(1,2,0))
     # plt.show()
 
-    model = CityScapesNetwork(in_channels=3, out_channels=numClasses()).to(device)
+    # model = CityScapesNetwork(in_channels=3, out_channels=numClasses()).to(device)
+    model = smp.Unet(encoder_name="resnet101", 
+                     encoder_weights="imagenet",
+                    #  activation="softmax", 
+                     in_channels=3, 
+                     classes=numClasses(),).to(device)
 
-    # criterion = DiceLoss()
     iou = IoULoss()
-    criterion = nn.CrossEntropyLoss(ignore_index=255)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    # criterion = nn.CrossEntropyLoss()
+    criterion = smp.losses.DiceLoss(mode="multiclass")
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
     if LOAD_MODEL:
         print("Loading models...")
@@ -75,21 +81,18 @@ if __name__=="__main__":
         CHECKPOINT_EPOCH = checkpoint['epoch']+1
         BEST_LOSS = model_loss
         print("Done!")
-        print('-'*20) 
 
-    for epoch in range(CHECKPOINT_EPOCH, EPOCHS):
+    for epoch in range(CHECKPOINT_EPOCH, EPOCHS+CHECKPOINT_EPOCH):
         print('-'*20)
+
         model.train()
         for i, (img, annotation) in enumerate(trainloader):
-            try:
-                img = img.to(device, dtype=torch.float32)
-                annotation = annotation.to(device).long()
-            except Exception as e:
-                pass
-            
-            output = encodeMask(model(img))
-            _output = torch.max(output,dim=1, keepdim=True)[0]
+            img = img.to(device, dtype=torch.float32)
+            annotation = annotation.to(device).long()
 
+            output = model(img)
+            _output = torch.max(output, dim=1)[1]
+            
             loss = criterion(output, annotation)
             iou_loss = iou(_output, annotation)
             optimizer.zero_grad()
@@ -102,18 +105,16 @@ if __name__=="__main__":
         running_val_loss = 0
         running_iou_loss = 0
         path = f"predictions/epoch_{epoch+1}.png"
-        model.eval()
+        apath = f"ann/epoch_{epoch+1}.png"
 
+        model.eval()
         with torch.no_grad(): 
             for idx, (img, annotation) in enumerate(valloader, 0):
-                try:
-                    img = img.to(device, dtype=torch.float32)
-                    annotation = annotation.to(device).long()
-                except Exception as e:
-                    pass
+                img = img.to(device, dtype=torch.float32)
+                annotation = annotation.to(device).long()
 
-                output = encodeMask(model(img))
-                _output = torch.max(output,dim=1, keepdim=True)[0]
+                output = model(img)
+                _output = torch.max(output,dim=1)[1]
                 if idx==0:
                     save_preds(_output, path)
 
