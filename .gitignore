@@ -3,3 +3,4 @@ saved_models/
 __pycache__/
 other/
 ann/
+predictions/
