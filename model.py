@@ -16,18 +16,17 @@ class CityScapesNetwork(nn.Module):
         """
 
         super(CityScapesNetwork, self).__init__()
-
         self.down1 = double_conv(in_channels,64)
         self.down2 = max_down(64,128)
         self.down3 = max_down(128,256)
         self.down4 = max_down(256,512)
         self.down5 = max_down(512,512)
-        self.up1 = upsample(1024,256)
-        self.up2 = upsample(512,128)
-        self.up3 = upsample(256,64)
-        self.up4 = upsample(128,64)
-        self.conv1 = nn.Conv2d(64, out_channels, 1)
-        self.out_conv = nn.Conv2d(out_channels, out_channels, 1)	
+        self.up1 = Upsample(1024,256)
+        self.up2 = Upsample(512,128)
+        self.up3 = Upsample(256,64)
+        self.up4 = Upsample(128,64)
+        self.out_conv = nn.Conv2d(64, out_channels, 1)
+        # self.out_conv = nn.Conv2d(out_channels, out_channels, 1)	
 
     def forward(self, x):
 
@@ -40,7 +39,7 @@ class CityScapesNetwork(nn.Module):
         x = self.up2(x,x3)
         x = self.up3(x,x2)
         x = self.up4(x,x1)
-        x = torch.relu(self.conv1(x))
+        # x = torch.relu(self.conv1(x))
         out = self.out_conv(x)
         return out
 
