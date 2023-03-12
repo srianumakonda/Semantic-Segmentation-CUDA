@@ -19,11 +19,11 @@ if __name__=="__main__":
     SEED = 42
     WEIGHT_DECAY = 5e-5
     BATCH_SIZE = 16
-    EPOCHS = 100
+    EPOCHS = 200-44
     LR = 1e-4
     CHECKPOINT_EPOCH = 0
     NUM_WORKERS = 8
-    LOAD_MODEL = False
+    LOAD_MODEL = True
     SAVE_MODEL = True
     WIDTH = 256
     HEIGHT = 512
